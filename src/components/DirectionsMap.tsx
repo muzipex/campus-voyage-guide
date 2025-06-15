@@ -1,8 +1,8 @@
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet-routing-machine';
-import { ArrowLeft, Navigation } from 'lucide-react';
+import { ArrowLeft, Navigation, Volume2, VolumeX } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { toast } from 'sonner';
 
@@ -36,6 +36,62 @@ const DirectionsMap: React.FC<DirectionsMapProps> = ({ destination, userLocation
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const routingControlRef = useRef<any>(null);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [currentInstructionIndex, setCurrentInstructionIndex] = useState(0);
+  const [routeInstructions, setRouteInstructions] = useState<string[]>([]);
+
+  // Voice synthesis function
+  const speakInstruction = (text: string) => {
+    if (!voiceEnabled) return;
+
+    // Cancel any ongoing speech
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.9;
+    utterance.volume = 0.8;
+    utterance.pitch = 1.0;
+    
+    // Use a clear voice if available
+    const voices = window.speechSynthesis.getVoices();
+    const preferredVoice = voices.find(voice => 
+      voice.lang.startsWith('en') && !voice.name.includes('Google')
+    );
+    if (preferredVoice) {
+      utterance.voice = preferredVoice;
+    }
+
+    window.speechSynthesis.speak(utterance);
+  };
+
+  // Process routing instructions for voice
+  const processInstructions = (instructions: any[]) => {
+    const voiceInstructions = instructions.map((instruction: any) => {
+      let text = instruction.text || instruction.instruction || '';
+      
+      // Clean up instruction text for better speech
+      text = text.replace(/<[^>]*>/g, ''); // Remove HTML tags
+      text = text.replace(/\d+(\.\d+)?\s*(m|km|ft|mi)/g, ''); // Remove distances
+      text = text.replace(/\s+/g, ' ').trim(); // Clean whitespace
+      
+      // Convert common routing terms to more natural speech
+      text = text.replace(/\bSL\b/g, 'slight left');
+      text = text.replace(/\bSR\b/g, 'slight right');
+      text = text.replace(/\bTL\b/g, 'turn left');
+      text = text.replace(/\bTR\b/g, 'turn right');
+      text = text.replace(/\bC\b/g, 'continue straight');
+      text = text.replace(/\bhead\s+/i, '');
+      
+      return text || 'Continue on route';
+    });
+
+    setRouteInstructions(voiceInstructions);
+    
+    // Speak the first instruction
+    if (voiceInstructions.length > 0) {
+      speakInstruction(`Starting navigation to ${destination.name}. ${voiceInstructions[0]}`);
+    }
+  };
 
   useEffect(() => {
     if (!mapRef.current) return;
@@ -147,6 +203,12 @@ const DirectionsMap: React.FC<DirectionsMapProps> = ({ destination, userLocation
         const summary = routes[0].summary;
         const distance = (summary.totalDistance / 1000).toFixed(1);
         const time = Math.round(summary.totalTime / 60);
+        
+        // Process instructions for voice guidance
+        if (routes[0].instructions) {
+          processInstructions(routes[0].instructions);
+        }
+        
         toast.success(`Route found! ${distance}km, ${time} minutes`);
       });
 
@@ -163,6 +225,11 @@ const DirectionsMap: React.FC<DirectionsMapProps> = ({ destination, userLocation
         }).addTo(map);
         
         map.fitBounds(polyline.getBounds(), { padding: [30, 30] });
+        
+        // Provide basic voice instruction for direct route
+        if (voiceEnabled) {
+          speakInstruction(`Heading directly to ${destination.name}. Follow the blue line on the map.`);
+        }
       });
 
       routingControl.addTo(map);
@@ -174,9 +241,27 @@ const DirectionsMap: React.FC<DirectionsMapProps> = ({ destination, userLocation
     }
 
     return () => {
+      // Stop any ongoing speech when component unmounts
+      window.speechSynthesis.cancel();
       map.remove();
     };
-  }, [destination, userLocation]);
+  }, [destination, userLocation, voiceEnabled]);
+
+  const toggleVoice = () => {
+    if (voiceEnabled) {
+      window.speechSynthesis.cancel();
+    }
+    setVoiceEnabled(!voiceEnabled);
+    toast.info(voiceEnabled ? 'Voice guidance disabled' : 'Voice guidance enabled');
+  };
+
+  const speakNextInstruction = () => {
+    if (routeInstructions.length > 0 && currentInstructionIndex < routeInstructions.length) {
+      const instruction = routeInstructions[currentInstructionIndex];
+      speakInstruction(instruction);
+      setCurrentInstructionIndex(prev => Math.min(prev + 1, routeInstructions.length - 1));
+    }
+  };
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">
@@ -191,10 +276,24 @@ const DirectionsMap: React.FC<DirectionsMapProps> = ({ destination, userLocation
           >
             <ArrowLeft className="w-4 h-4" />
           </Button>
-          <div>
+          <div className="flex-1">
             <h2 className="text-xl font-bold text-gray-900">Directions to {destination.name}</h2>
             <p className="text-sm text-gray-600 mt-1">{destination.description}</p>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={toggleVoice}
+            className={`shadow-sm hover:shadow-md transition-all ${
+              voiceEnabled ? 'bg-blue-50 border-blue-200' : ''
+            }`}
+          >
+            {voiceEnabled ? (
+              <Volume2 className="w-4 h-4 text-blue-600" />
+            ) : (
+              <VolumeX className="w-4 h-4 text-gray-400" />
+            )}
+          </Button>
         </div>
       </div>
 
@@ -217,9 +316,26 @@ const DirectionsMap: React.FC<DirectionsMapProps> = ({ destination, userLocation
           </div>
           <p className="text-gray-600 text-sm mb-3 leading-relaxed">{destination.description}</p>
           {destination.hours && (
-            <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg">
+            <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg mb-3">
               <strong className="text-gray-900">Hours:</strong> {destination.hours}
             </p>
+          )}
+          {routeInstructions.length > 0 && (
+            <div className="space-y-2">
+              <Button
+                onClick={speakNextInstruction}
+                variant="outline"
+                size="sm"
+                className="w-full"
+                disabled={!voiceEnabled}
+              >
+                <Volume2 className="w-4 h-4 mr-2" />
+                Repeat Current Instruction
+              </Button>
+              <p className="text-xs text-gray-500 text-center">
+                Voice guidance: {voiceEnabled ? 'ON' : 'OFF'}
+              </p>
+            </div>
           )}
         </div>
       </div>
