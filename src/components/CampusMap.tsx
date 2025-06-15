@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from 'sonner';
+import DirectionsMap from './DirectionsMap';
 
 // Fix for default markers in Leaflet
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -51,8 +52,8 @@ const CampusMap = () => {
   const [showAccessibleOnly, setShowAccessibleOnly] = useState(false);
   const [selectedPOI, setSelectedPOI] = useState<POI | null>(null);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
-  const [showingDirections, setShowingDirections] = useState(false);
-  const [isLoadingDirections, setIsLoadingDirections] = useState(false);
+  const [showDirections, setShowDirections] = useState(false);
+  const [directionsDestination, setDirectionsDestination] = useState<POI | null>(null);
 
   const [isPlacingMarker, setIsPlacingMarker] = useState(false);
   const [newPOICoords, setNewPOICoords] = useState<[number, number] | null>(null);
@@ -319,97 +320,27 @@ const CampusMap = () => {
     if (routingControlRef.current) {
       mapInstanceRef.current.removeControl(routingControlRef.current);
       routingControlRef.current = null;
-      setShowingDirections(false);
+      setShowDirections(false);
     }
     
     mapInstanceRef.current.setView(poi.coordinates, 19);
     setSelectedPOI(poi);
   };
 
-  const handleGetDirections = async (poi: POI) => {
-    const map = mapInstanceRef.current;
-    if (!map) {
-      toast.error("Map not available");
+  const handleGetDirections = (poi: POI) => {
+    if (!userLocation) {
+      toast.error("Your location is not available");
       return;
     }
 
-    console.log('Getting directions button clicked for:', poi.name);
-    console.log('Current user location:', userLocation);
-    
-    setIsLoadingDirections(true);
-
-    // Use fallback location if user location is not available
-    const startLocation = userLocation || [0.3475, 32.5823];
-    
-    console.log('Starting directions from:', startLocation, 'to:', poi.coordinates);
-
-    // Clear existing route
-    if (routingControlRef.current) {
-      map.removeControl(routingControlRef.current);
-      routingControlRef.current = null;
-    }
-
-    try {
-      // Create routing control with better error handling
-      const routingControl = (L as any).Routing.control({
-        waypoints: [
-          L.latLng(startLocation[0], startLocation[1]),
-          L.latLng(poi.coordinates[0], poi.coordinates[1]),
-        ],
-        routeWhileDragging: false,
-        addWaypoints: false,
-        fitSelectedRoutes: true,
-        show: false, // Hide the itinerary panel
-        lineOptions: {
-          styles: [{ color: '#3B82F6', opacity: 0.8, weight: 6 }]
-        }
-      });
-
-      // Add error handling
-      routingControl.on('routesfound', (e: any) => {
-        console.log('Route found successfully');
-        setShowingDirections(true);
-        setIsLoadingDirections(false);
-        toast.success(`Directions to ${poi.name} are now showing!`);
-      });
-
-      routingControl.on('routingerror', (e: any) => {
-        console.error('Routing error:', e);
-        setIsLoadingDirections(false);
-        toast.error("Could not find route. Showing direct line instead.");
-        
-        // Show a simple line as fallback
-        const polyline = L.polyline([startLocation, poi.coordinates], {
-          color: '#3B82F6',
-          opacity: 0.8,
-          weight: 6,
-          dashArray: '10, 10'
-        }).addTo(map);
-        
-        map.fitBounds(polyline.getBounds(), { padding: [20, 20] });
-        setShowingDirections(true);
-      });
-
-      routingControl.addTo(map);
-      routingControlRef.current = routingControl;
-      
-      // Close the POI info panel
-      setSelectedPOI(null);
-      
-    } catch (error) {
-      console.error('Error creating route:', error);
-      setIsLoadingDirections(false);
-      toast.error("Unable to create route. Please try again.");
-    }
+    setDirectionsDestination(poi);
+    setShowDirections(true);
+    setSelectedPOI(null);
   };
 
-  const clearDirections = () => {
-    if (routingControlRef.current && mapInstanceRef.current) {
-      mapInstanceRef.current.removeControl(routingControlRef.current);
-      routingControlRef.current = null;
-      setShowingDirections(false);
-      toast.info("Directions cleared");
-    }
+  const handleBackFromDirections = () => {
+    setShowDirections(false);
+    setDirectionsDestination(null);
   };
 
   const handleMyLocationClick = () => {
@@ -442,6 +373,17 @@ const CampusMap = () => {
     setNewPOICategory('services');
     setNewPOICoords(null);
   };
+
+  // Show directions view if directions are requested
+  if (showDirections && directionsDestination && userLocation) {
+    return (
+      <DirectionsMap
+        destination={directionsDestination}
+        userLocation={userLocation}
+        onBack={handleBackFromDirections}
+      />
+    );
+  }
 
   return (
     <div className="flex flex-col lg:flex-row h-screen bg-gray-50">
@@ -490,15 +432,15 @@ const CampusMap = () => {
               <Accessibility className="w-4 h-4 mr-2" />
               Accessible Only
             </Button>
-            {showingDirections && (
+            {showDirections && (
               <Button
-                onClick={clearDirections}
+                onClick={handleBackFromDirections}
                 variant="outline"
                 size="sm"
                 className="w-full justify-start"
               >
                 <Navigation className="w-4 h-4 mr-2" />
-                Clear Directions
+                Back to Map
               </Button>
             )}
           </div>
@@ -579,11 +521,6 @@ const CampusMap = () => {
             <MapPin className="w-4 h-4 mr-2" />
             My Location
           </Button>
-          {showingDirections && (
-            <Button size="sm" variant="outline" className="w-full" onClick={clearDirections}>
-              Clear Route
-            </Button>
-          )}
         </div>
 
         {/* Selected POI Info */}
@@ -592,14 +529,7 @@ const CampusMap = () => {
             <div className="flex items-start justify-between mb-2">
               <h3 className="font-bold text-lg">{selectedPOI.name}</h3>
               <button
-                onClick={() => {
-                  setSelectedPOI(null);
-                  if (routingControlRef.current && mapInstanceRef.current) {
-                    mapInstanceRef.current.removeControl(routingControlRef.current);
-                    routingControlRef.current = null;
-                    setShowingDirections(false);
-                  }
-                }}
+                onClick={() => setSelectedPOI(null)}
                 className="text-gray-400 hover:text-gray-600"
               >
                 ×
@@ -621,31 +551,10 @@ const CampusMap = () => {
               className="w-full" 
               size="sm" 
               onClick={() => handleGetDirections(selectedPOI)}
-              disabled={isLoadingDirections}
             >
               <Navigation className="w-4 h-4 mr-2" />
-              {isLoadingDirections ? 'Loading Directions...' : 'Get Directions'}
+              Get Directions
             </Button>
-          </div>
-        )}
-
-        {/* Directions Status */}
-        {showingDirections && (
-          <div className="absolute top-4 left-4 bg-blue-600 text-white rounded-lg shadow-lg p-3">
-            <div className="flex items-center">
-              <Navigation className="w-4 h-4 mr-2" />
-              <span className="text-sm font-medium">Showing directions</span>
-            </div>
-          </div>
-        )}
-        
-        {/* Loading indicator */}
-        {isLoadingDirections && (
-          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-lg p-4">
-            <div className="flex items-center space-x-2">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-              <span className="text-sm">Loading directions...</span>
-            </div>
           </div>
         )}
       </div>
