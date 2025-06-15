@@ -17,6 +17,8 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from 'sonner';
+import 'leaflet-routing-machine';
 
 // Fix for default markers in Leaflet
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -42,6 +44,7 @@ const CampusMap = () => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markersRef = useRef<L.LayerGroup>(new L.LayerGroup());
+  const routingControlRef = useRef<L.Routing.Control | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [showEssentialsOnly, setShowEssentialsOnly] = useState(false);
@@ -301,6 +304,11 @@ const CampusMap = () => {
   const navigateTo = (poi: POI) => {
     if (!mapInstanceRef.current) return;
     
+    if (routingControlRef.current) {
+      mapInstanceRef.current.removeControl(routingControlRef.current);
+      routingControlRef.current = null;
+    }
+    
     mapInstanceRef.current.setView(poi.coordinates, 19);
     setSelectedPOI(poi);
     
@@ -308,6 +316,47 @@ const CampusMap = () => {
     if (userLocation) {
       console.log(`Navigate from ${userLocation} to ${poi.coordinates}`);
       // This is where you'd implement routing logic
+    }
+  };
+
+  const handleGetDirections = (poi: POI) => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    if (!userLocation) {
+      toast.error("Your location is not available. Please enable location services.");
+      return;
+    }
+
+    if (routingControlRef.current) {
+      map.removeControl(routingControlRef.current);
+    }
+
+    const routingControl = L.Routing.control({
+      waypoints: [
+        L.latLng(userLocation[0], userLocation[1]),
+        L.latLng(poi.coordinates[0], poi.coordinates[1]),
+      ],
+      routeWhileDragging: false,
+      show: false,
+      addWaypoints: false,
+      draggableWaypoints: false,
+      fitSelectedRoutes: true,
+      lineOptions: {
+        styles: [{ color: '#3B82F6', opacity: 0.8, weight: 6 }],
+      },
+      createMarker: () => null,
+    }).addTo(map);
+
+    routingControlRef.current = routingControl;
+    setSelectedPOI(null);
+  };
+
+  const handleMyLocationClick = () => {
+    if (userLocation && mapInstanceRef.current) {
+      mapInstanceRef.current.setView(userLocation, 18);
+    } else {
+      toast.info("Your location is not available.");
     }
   };
 
@@ -455,7 +504,7 @@ const CampusMap = () => {
         
         {/* Map Controls */}
         <div className="absolute top-4 right-4 bg-white rounded-lg shadow-lg p-2 space-y-2">
-          <Button size="sm" variant="outline" className="w-full">
+          <Button size="sm" variant="outline" className="w-full" onClick={handleMyLocationClick}>
             <MapPin className="w-4 h-4 mr-2" />
             My Location
           </Button>
@@ -467,7 +516,13 @@ const CampusMap = () => {
             <div className="flex items-start justify-between mb-2">
               <h3 className="font-bold text-lg">{selectedPOI.name}</h3>
               <button
-                onClick={() => setSelectedPOI(null)}
+                onClick={() => {
+                  setSelectedPOI(null);
+                  if (routingControlRef.current && mapInstanceRef.current) {
+                    mapInstanceRef.current.removeControl(routingControlRef.current);
+                    routingControlRef.current = null;
+                  }
+                }}
                 className="text-gray-400 hover:text-gray-600"
               >
                 ×
@@ -485,7 +540,7 @@ const CampusMap = () => {
                 <Badge variant="outline">Accessible</Badge>
               )}
             </div>
-            <Button className="w-full" size="sm">
+            <Button className="w-full" size="sm" onClick={() => handleGetDirections(selectedPOI)}>
               <Navigation className="w-4 h-4 mr-2" />
               Get Directions
             </Button>
