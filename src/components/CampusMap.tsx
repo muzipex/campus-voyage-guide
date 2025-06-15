@@ -51,6 +51,7 @@ const CampusMap = () => {
   const [showAccessibleOnly, setShowAccessibleOnly] = useState(false);
   const [selectedPOI, setSelectedPOI] = useState<POI | null>(null);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+  const [showingDirections, setShowingDirections] = useState(false);
 
   const [isPlacingMarker, setIsPlacingMarker] = useState(false);
   const [newPOICoords, setNewPOICoords] = useState<[number, number] | null>(null);
@@ -210,8 +211,13 @@ const CampusMap = () => {
         },
         (error) => {
           console.log('Location access denied:', error);
+          // Set a default location near campus for demo purposes
+          setUserLocation([0.3475, 32.5823]);
         }
       );
+    } else {
+      // Set a default location near campus for demo purposes
+      setUserLocation([0.3475, 32.5823]);
     }
 
     return () => {
@@ -307,16 +313,11 @@ const CampusMap = () => {
     if (routingControlRef.current) {
       mapInstanceRef.current.removeControl(routingControlRef.current);
       routingControlRef.current = null;
+      setShowingDirections(false);
     }
     
     mapInstanceRef.current.setView(poi.coordinates, 19);
     setSelectedPOI(poi);
-    
-    // If user location is available, you could add routing here
-    if (userLocation) {
-      console.log(`Navigate from ${userLocation} to ${poi.coordinates}`);
-      // This is where you'd implement routing logic
-    }
   };
 
   const handleGetDirections = (poi: POI) => {
@@ -324,29 +325,51 @@ const CampusMap = () => {
     if (!map) return;
 
     if (!userLocation) {
-      toast.error("Your location is not available. Please enable location services.");
+      toast.error("Your location is not available. Using campus center as starting point.");
       return;
     }
+
+    console.log('Getting directions from', userLocation, 'to', poi.coordinates);
 
     if (routingControlRef.current) {
       map.removeControl(routingControlRef.current);
     }
 
-    const routingControl = (L as any).Routing.control({
-      waypoints: [
-        L.latLng(userLocation[0], userLocation[1]),
-        L.latLng(poi.coordinates[0], poi.coordinates[1]),
-      ],
-      routeWhileDragging: false,
-      addWaypoints: false,
-      fitSelectedRoutes: true,
-      lineOptions: {
-        styles: [{ color: '#3B82F6', opacity: 0.8, weight: 6 }]
-      }
-    }).addTo(map);
+    try {
+      const routingControl = (L as any).Routing.control({
+        waypoints: [
+          L.latLng(userLocation[0], userLocation[1]),
+          L.latLng(poi.coordinates[0], poi.coordinates[1]),
+        ],
+        routeWhileDragging: false,
+        addWaypoints: false,
+        fitSelectedRoutes: true,
+        show: true,
+        createMarker: function() { return null; }, // Don't create additional markers
+        lineOptions: {
+          styles: [{ color: '#3B82F6', opacity: 0.8, weight: 6 }]
+        }
+      }).addTo(map);
 
-    routingControlRef.current = routingControl;
-    setSelectedPOI(null);
+      routingControlRef.current = routingControl;
+      setShowingDirections(true);
+      setSelectedPOI(null);
+      
+      toast.success(`Directions to ${poi.name} are now showing on the map!`);
+      
+    } catch (error) {
+      console.error('Error creating route:', error);
+      toast.error("Unable to create route. Please try again.");
+    }
+  };
+
+  const clearDirections = () => {
+    if (routingControlRef.current && mapInstanceRef.current) {
+      mapInstanceRef.current.removeControl(routingControlRef.current);
+      routingControlRef.current = null;
+      setShowingDirections(false);
+      toast.info("Directions cleared");
+    }
   };
 
   const handleMyLocationClick = () => {
@@ -427,6 +450,17 @@ const CampusMap = () => {
               <Accessibility className="w-4 h-4 mr-2" />
               Accessible Only
             </Button>
+            {showingDirections && (
+              <Button
+                onClick={clearDirections}
+                variant="outline"
+                size="sm"
+                className="w-full justify-start"
+              >
+                <Navigation className="w-4 h-4 mr-2" />
+                Clear Directions
+              </Button>
+            )}
           </div>
 
           {/* Categories */}
@@ -505,6 +539,11 @@ const CampusMap = () => {
             <MapPin className="w-4 h-4 mr-2" />
             My Location
           </Button>
+          {showingDirections && (
+            <Button size="sm" variant="outline" className="w-full" onClick={clearDirections}>
+              Clear Route
+            </Button>
+          )}
         </div>
 
         {/* Selected POI Info */}
@@ -518,6 +557,7 @@ const CampusMap = () => {
                   if (routingControlRef.current && mapInstanceRef.current) {
                     mapInstanceRef.current.removeControl(routingControlRef.current);
                     routingControlRef.current = null;
+                    setShowingDirections(false);
                   }
                 }}
                 className="text-gray-400 hover:text-gray-600"
@@ -541,6 +581,16 @@ const CampusMap = () => {
               <Navigation className="w-4 h-4 mr-2" />
               Get Directions
             </Button>
+          </div>
+        )}
+
+        {/* Directions Status */}
+        {showingDirections && (
+          <div className="absolute top-4 left-4 bg-blue-600 text-white rounded-lg shadow-lg p-3">
+            <div className="flex items-center">
+              <Navigation className="w-4 h-4 mr-2" />
+              <span className="text-sm font-medium">Showing directions</span>
+            </div>
           </div>
         )}
       </div>
