@@ -1,11 +1,22 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
-import { MapPin, Navigation, Search, Filter, Star, Accessibility } from 'lucide-react';
+import { MapPin, Navigation, Search, Filter, Star, Accessibility, Plus } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 // Fix for default markers in Leaflet
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -38,8 +49,17 @@ const CampusMap = () => {
   const [selectedPOI, setSelectedPOI] = useState<POI | null>(null);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
 
+  const [isPlacingMarker, setIsPlacingMarker] = useState(false);
+  const [newPOICoords, setNewPOICoords] = useState<[number, number] | null>(null);
+  const [isAddMarkerDialogOpen, setAddMarkerDialogOpen] = useState(false);
+
+  // Form state for new POI
+  const [newPOIName, setNewPOIName] = useState('');
+  const [newPOIDescription, setNewPOIDescription] = useState('');
+  const [newPOICategory, setNewPOICategory] = useState<POI['category']>('services');
+
   // Sample POI data for Mubs University (you can expand this)
-  const poisData: POI[] = [
+  const initialPois: POI[] = [
     {
       id: '1',
       name: 'Main Library',
@@ -140,7 +160,9 @@ const CampusMap = () => {
     { id: 'emergency', name: 'Emergency', icon: '🏥' },
   ];
 
-  const filteredPOIs = poisData.filter(poi => {
+  const [pois, setPois] = useState<POI[]>(initialPois);
+
+  const filteredPOIs = pois.filter(poi => {
     const matchesSearch = poi.name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = selectedCategory === 'all' || poi.category === selectedCategory;
     const matchesEssentials = !showEssentialsOnly || poi.isEssential;
@@ -193,6 +215,33 @@ const CampusMap = () => {
       map.remove();
     };
   }, []);
+
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    const handleMapClick = (e: L.LeafletMouseEvent) => {
+      if (isPlacingMarker) {
+        setNewPOICoords([e.latlng.lat, e.latlng.lng]);
+        setAddMarkerDialogOpen(true);
+        setIsPlacingMarker(false);
+      }
+    };
+    
+    if (isPlacingMarker && mapRef.current) {
+        mapRef.current.style.cursor = 'crosshair';
+        map.on('click', handleMapClick);
+    } else if (mapRef.current) {
+        mapRef.current.style.cursor = '';
+    }
+
+    return () => {
+      map.off('click', handleMapClick);
+      if (mapRef.current) {
+          mapRef.current.style.cursor = '';
+      }
+    };
+  }, [isPlacingMarker]);
 
   useEffect(() => {
     if (!mapInstanceRef.current) return;
@@ -262,6 +311,29 @@ const CampusMap = () => {
     }
   };
 
+  const handleAddPOI = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPOICoords || !newPOIName) return;
+
+    const newPOI: POI = {
+      id: new Date().toISOString(),
+      name: newPOIName,
+      description: newPOIDescription,
+      category: newPOICategory,
+      coordinates: newPOICoords,
+      isAccessible: false,
+      isEssential: false,
+    };
+
+    setPois(prevPois => [...prevPois, newPOI]);
+
+    setAddMarkerDialogOpen(false);
+    setNewPOIName('');
+    setNewPOIDescription('');
+    setNewPOICategory('services');
+    setNewPOICoords(null);
+  };
+
   return (
     <div className="flex flex-col lg:flex-row h-screen bg-gray-50">
       {/* Sidebar */}
@@ -282,6 +354,15 @@ const CampusMap = () => {
 
           {/* Filter Buttons */}
           <div className="space-y-2 mb-4">
+            <Button
+              onClick={() => setIsPlacingMarker(!isPlacingMarker)}
+              variant={isPlacingMarker ? 'destructive' : 'outline'}
+              size="sm"
+              className="w-full justify-start"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              {isPlacingMarker ? 'Cancel Placement' : 'Add New Location'}
+            </Button>
             <Button
               onClick={() => setShowEssentialsOnly(!showEssentialsOnly)}
               variant={showEssentialsOnly ? "default" : "outline"}
@@ -411,6 +492,57 @@ const CampusMap = () => {
           </div>
         )}
       </div>
+
+      <Dialog open={isAddMarkerDialogOpen} onOpenChange={setAddMarkerDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add a new Point of Interest</DialogTitle>
+            <DialogDescription>
+              A marker has been placed at the location you clicked. Please fill out the details for this new POI.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleAddPOI} className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label htmlFor="poi-name">Name</Label>
+              <Input
+                id="poi-name"
+                value={newPOIName}
+                onChange={(e) => setNewPOIName(e.target.value)}
+                placeholder="e.g., New Study Area"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="poi-description">Description</Label>
+              <Textarea
+                id="poi-description"
+                value={newPOIDescription}
+                onChange={(e) => setNewPOIDescription(e.target.value)}
+                placeholder="A short description of the location."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="poi-category">Category</Label>
+              <Select value={newPOICategory} onValueChange={(value) => setNewPOICategory(value as POI['category'])}>
+                <SelectTrigger id="poi-category">
+                  <SelectValue placeholder="Select a category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.filter(c => c.id !== 'all').map(category => (
+                    <SelectItem key={category.id} value={category.id}>{category.icon} {category.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button type="button" variant="outline" onClick={() => setNewPOICoords(null)}>Cancel</Button>
+              </DialogClose>
+              <Button type="submit">Add POI</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
