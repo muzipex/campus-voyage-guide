@@ -4,7 +4,7 @@ import L from 'leaflet';
 import 'leaflet-routing-machine';
 import { ArrowLeft, Navigation, Volume2, VolumeX } from 'lucide-react';
 import { Button } from "@/components/ui/button";
-import { toast } from 'sonner';
+import { useToast } from "@/hooks/use-toast";
 
 // Fix for default markers in Leaflet
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -39,10 +39,11 @@ const DirectionsMap: React.FC<DirectionsMapProps> = ({ destination, userLocation
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [currentInstructionIndex, setCurrentInstructionIndex] = useState(0);
   const [routeInstructions, setRouteInstructions] = useState<string[]>([]);
+  const { toast } = useToast();
 
   // Voice synthesis function
   const speakInstruction = (text: string) => {
-    if (!voiceEnabled) return;
+    if (!voiceEnabled || typeof window === 'undefined' || !window.speechSynthesis) return;
 
     // Cancel any ongoing speech
     window.speechSynthesis.cancel();
@@ -94,7 +95,7 @@ const DirectionsMap: React.FC<DirectionsMapProps> = ({ destination, userLocation
   };
 
   useEffect(() => {
-    if (!mapRef.current) return;
+    if (!mapRef.current || typeof window === 'undefined') return;
 
     // Initialize map with higher zoom and better options for clarity
     const map = L.map(mapRef.current, {
@@ -209,12 +210,19 @@ const DirectionsMap: React.FC<DirectionsMapProps> = ({ destination, userLocation
           processInstructions(routes[0].instructions);
         }
         
-        toast.success(`Route found! ${distance}km, ${time} minutes`);
+        toast({
+          title: "Route found!",
+          description: `${distance}km, ${time} minutes`
+        });
       });
 
       routingControl.on('routingerror', (e: any) => {
         console.error('Routing error:', e);
-        toast.error("Could not find route. Showing direct line instead.");
+        toast({
+          title: "Error",
+          description: "Could not find route. Showing direct line instead.",
+          variant: "destructive"
+        });
         
         // Show a clearer fallback line
         const polyline = L.polyline([userLocation, destination.coordinates], {
@@ -237,22 +245,32 @@ const DirectionsMap: React.FC<DirectionsMapProps> = ({ destination, userLocation
       
     } catch (error) {
       console.error('Error creating route:', error);
-      toast.error("Unable to create route. Please try again.");
+      toast({
+        title: "Error",
+        description: "Unable to create route. Please try again.",
+        variant: "destructive"
+      });
     }
 
     return () => {
       // Stop any ongoing speech when component unmounts
-      window.speechSynthesis.cancel();
-      map.remove();
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+      if (map) {
+        map.remove();
+      }
     };
-  }, [destination, userLocation, voiceEnabled]);
+  }, [destination, userLocation, voiceEnabled, toast]);
 
   const toggleVoice = () => {
-    if (voiceEnabled) {
+    if (voiceEnabled && typeof window !== 'undefined' && window.speechSynthesis) {
       window.speechSynthesis.cancel();
     }
     setVoiceEnabled(!voiceEnabled);
-    toast.info(voiceEnabled ? 'Voice guidance disabled' : 'Voice guidance enabled');
+    toast({
+      title: voiceEnabled ? 'Voice guidance disabled' : 'Voice guidance enabled'
+    });
   };
 
   const speakNextInstruction = () => {

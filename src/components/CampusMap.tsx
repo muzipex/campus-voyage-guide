@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet-routing-machine';
@@ -18,7 +19,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { toast } from 'sonner';
+import { useToast } from "@/hooks/use-toast";
 import DirectionsMap from './DirectionsMap';
 
 // Fix for default markers in Leaflet
@@ -63,6 +64,8 @@ const CampusMap = () => {
   const [newPOIName, setNewPOIName] = useState('');
   const [newPOIDescription, setNewPOIDescription] = useState('');
   const [newPOICategory, setNewPOICategory] = useState<POI['category']>('services');
+
+  const { toast } = useToast();
 
   // Sample POI data for Mubs University (you can expand this)
   const initialPois: POI[] = [
@@ -178,7 +181,7 @@ const CampusMap = () => {
   });
 
   useEffect(() => {
-    if (!mapRef.current) return;
+    if (!mapRef.current || typeof window === 'undefined') return;
 
     // Initialize map centered on Mubs University area with higher default zoom for clarity
     const map = L.map(mapRef.current, {
@@ -248,7 +251,10 @@ const CampusMap = () => {
           console.log('Location access denied, using fallback:', error);
           const fallbackLocation: [number, number] = [0.3475, 32.5823];
           setUserLocation(fallbackLocation);
-          toast.info("Using campus center as starting point for directions");
+          toast({
+            title: "Location",
+            description: "Using campus center as starting point for directions"
+          });
         }
       );
     } else {
@@ -260,7 +266,7 @@ const CampusMap = () => {
     return () => {
       map.remove();
     };
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     const map = mapInstanceRef.current;
@@ -366,7 +372,11 @@ const CampusMap = () => {
 
   const handleGetDirections = (poi: POI) => {
     if (!userLocation) {
-      toast.error("Your location is not available");
+      toast({
+        title: "Error",
+        description: "Your location is not available",
+        variant: "destructive"
+      });
       return;
     }
 
@@ -384,7 +394,10 @@ const CampusMap = () => {
     if (userLocation && mapInstanceRef.current) {
       mapInstanceRef.current.setView(userLocation, 18);
     } else {
-      toast.info("Your location is not available.");
+      toast({
+        title: "Location",
+        description: "Your location is not available."
+      });
     }
   };
 
