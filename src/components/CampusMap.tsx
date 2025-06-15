@@ -180,13 +180,21 @@ const CampusMap = () => {
   useEffect(() => {
     if (!mapRef.current) return;
 
-    // Initialize map centered on Mubs University area (approximate coordinates)
-    const map = L.map(mapRef.current).setView([0.3476, 32.5825], 17);
+    // Initialize map centered on Mubs University area with higher default zoom for clarity
+    const map = L.map(mapRef.current, {
+      zoomControl: true,
+      attributionControl: true,
+      preferCanvas: true // Better performance for many markers
+    }).setView([0.3476, 32.5825], 18); // Increased zoom from 17 to 18
     mapInstanceRef.current = map;
 
-    // Add tile layer
+    // Use a clearer, high-contrast tile layer
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors'
+      attribution: '© OpenStreetMap contributors',
+      maxZoom: 20,
+      tileSize: 256,
+      zoomOffset: 0,
+      detectRetina: true // Enable high-DPI support
     }).addTo(map);
 
     // Add markers layer group
@@ -200,21 +208,44 @@ const CampusMap = () => {
           console.log('User location obtained:', coords);
           setUserLocation(coords);
           
-          // Add user location marker
+          // Enhanced user location marker with better visibility
           const userMarker = L.marker(coords, {
             icon: L.divIcon({
-              html: '<div style="background: #3B82F6; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>',
+              html: `
+                <div style="
+                  background: #3B82F6; 
+                  width: 24px; 
+                  height: 24px; 
+                  border-radius: 50%; 
+                  border: 4px solid white; 
+                  box-shadow: 0 3px 8px rgba(0,0,0,0.4);
+                  position: relative;
+                ">
+                  <div style="
+                    width: 8px;
+                    height: 8px;
+                    background: white;
+                    border-radius: 50%;
+                    position: absolute;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                  "></div>
+                </div>
+              `,
               className: 'user-location-marker',
-              iconSize: [20, 20],
-              iconAnchor: [10, 10]
+              iconSize: [24, 24],
+              iconAnchor: [12, 12]
             })
           }).addTo(map);
           
-          userMarker.bindPopup('You are here');
+          userMarker.bindPopup('<strong>You are here</strong>', {
+            offset: [0, -12],
+            className: 'custom-popup'
+          });
         },
         (error) => {
           console.log('Location access denied, using fallback:', error);
-          // Set a fallback location near campus
           const fallbackLocation: [number, number] = [0.3475, 32.5823];
           setUserLocation(fallbackLocation);
           toast.info("Using campus center as starting point for directions");
@@ -222,7 +253,6 @@ const CampusMap = () => {
       );
     } else {
       console.log('Geolocation not supported, using fallback');
-      // Set a fallback location near campus
       const fallbackLocation: [number, number] = [0.3475, 32.5823];
       setUserLocation(fallbackLocation);
     }
@@ -265,7 +295,7 @@ const CampusMap = () => {
     // Clear existing markers
     markersRef.current.clearLayers();
 
-    // Add filtered POI markers
+    // Add filtered POI markers with enhanced visibility
     filteredPOIs.forEach(poi => {
       const marker = L.marker(poi.coordinates, {
         icon: L.divIcon({
@@ -273,38 +303,45 @@ const CampusMap = () => {
             <div style="
               background: ${categoryColors[poi.category]}; 
               color: white; 
-              width: 30px; 
-              height: 30px; 
+              width: 36px; 
+              height: 36px; 
               border-radius: 50%; 
               display: flex; 
               align-items: center; 
               justify-content: center; 
-              font-size: 16px;
-              border: 3px solid white;
-              box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+              font-size: 18px;
+              border: 4px solid white;
+              box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+              font-weight: bold;
               ${poi.isEssential ? 'animation: pulse 2s infinite;' : ''}
+              position: relative;
             ">
               ${categoryIcons[poi.category]}
+              ${poi.isEssential ? '<div style="position: absolute; top: -2px; right: -2px; width: 12px; height: 12px; background: #F59E0B; border: 2px solid white; border-radius: 50%;"></div>' : ''}
             </div>
           `,
           className: 'poi-marker',
-          iconSize: [30, 30],
-          iconAnchor: [15, 15]
+          iconSize: [36, 36],
+          iconAnchor: [18, 18]
         })
       });
 
+      // Enhanced popup with better styling
       marker.bindPopup(`
-        <div style="min-width: 200px;">
-          <h3 style="margin: 0 0 8px 0; font-weight: bold;">${poi.name}</h3>
-          <p style="margin: 0 0 8px 0; color: #666;">${poi.description}</p>
-          ${poi.hours ? `<p style="margin: 0 0 4px 0;"><strong>Hours:</strong> ${poi.hours}</p>` : ''}
-          ${poi.floor ? `<p style="margin: 0 0 4px 0;"><strong>Floor:</strong> ${poi.floor}</p>` : ''}
-          <div style="display: flex; gap: 4px; margin-top: 8px;">
-            ${poi.isEssential ? '<span style="background: #FEF3C7; color: #92400E; padding: 2px 6px; border-radius: 4px; font-size: 12px;">Essential</span>' : ''}
-            ${poi.isAccessible ? '<span style="background: #D1FAE5; color: #065F46; padding: 2px 6px; border-radius: 4px; font-size: 12px;">Accessible</span>' : ''}
+        <div style="min-width: 220px; font-family: system-ui, -apple-system, sans-serif;">
+          <h3 style="margin: 0 0 8px 0; font-weight: bold; font-size: 16px; color: #1f2937;">${poi.name}</h3>
+          <p style="margin: 0 0 8px 0; color: #6b7280; font-size: 14px; line-height: 1.4;">${poi.description}</p>
+          ${poi.hours ? `<p style="margin: 0 0 4px 0; font-size: 13px;"><strong>Hours:</strong> ${poi.hours}</p>` : ''}
+          ${poi.floor ? `<p style="margin: 0 0 4px 0; font-size: 13px;"><strong>Floor:</strong> ${poi.floor}</p>` : ''}
+          <div style="display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap;">
+            ${poi.isEssential ? '<span style="background: #FEF3C7; color: #92400E; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 500;">Essential</span>' : ''}
+            ${poi.isAccessible ? '<span style="background: #D1FAE5; color: #065F46; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 500;">Accessible</span>' : ''}
           </div>
         </div>
-      `);
+      `, {
+        maxWidth: 300,
+        className: 'custom-popup'
+      });
 
       marker.on('click', () => {
         setSelectedPOI(poi);
@@ -511,44 +548,58 @@ const CampusMap = () => {
         </div>
       </div>
 
-      {/* Map Container */}
-      <div className="flex-1 relative">
-        <div ref={mapRef} className="absolute inset-0" />
+      {/* Map Container with enhanced styling */}
+      <div className="flex-1 relative bg-white rounded-lg shadow-inner">
+        <div 
+          ref={mapRef} 
+          className="absolute inset-2 rounded-lg overflow-hidden border-2 border-gray-200 shadow-md" 
+          style={{ 
+            minHeight: '400px',
+            background: '#f8fafc' // Light background while loading
+          }} 
+        />
         
-        {/* Map Controls */}
-        <div className="absolute top-4 right-4 bg-white rounded-lg shadow-lg p-2 space-y-2">
-          <Button size="sm" variant="outline" className="w-full" onClick={handleMyLocationClick}>
+        {/* Enhanced Map Controls */}
+        <div className="absolute top-6 right-6 bg-white rounded-lg shadow-lg border border-gray-200 p-2 space-y-2">
+          <Button 
+            size="sm" 
+            variant="outline" 
+            className="w-full font-medium shadow-sm hover:shadow-md transition-shadow" 
+            onClick={handleMyLocationClick}
+          >
             <MapPin className="w-4 h-4 mr-2" />
             My Location
           </Button>
         </div>
 
-        {/* Selected POI Info */}
+        {/* Enhanced Selected POI Info */}
         {selectedPOI && (
-          <div className="absolute bottom-4 left-4 right-4 lg:right-auto lg:w-80 bg-white rounded-lg shadow-lg p-4">
-            <div className="flex items-start justify-between mb-2">
-              <h3 className="font-bold text-lg">{selectedPOI.name}</h3>
+          <div className="absolute bottom-6 left-6 right-6 lg:right-auto lg:w-96 bg-white rounded-xl shadow-xl border border-gray-100 p-6">
+            <div className="flex items-start justify-between mb-3">
+              <h3 className="font-bold text-xl text-gray-900">{selectedPOI.name}</h3>
               <button
                 onClick={() => setSelectedPOI(null)}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-gray-400 hover:text-gray-600 text-xl font-light leading-none"
               >
                 ×
               </button>
             </div>
-            <p className="text-gray-600 text-sm mb-3">{selectedPOI.description}</p>
+            <p className="text-gray-600 text-sm mb-4 leading-relaxed">{selectedPOI.description}</p>
             {selectedPOI.hours && (
-              <p className="text-sm mb-2"><strong>Hours:</strong> {selectedPOI.hours}</p>
+              <p className="text-sm mb-3 text-gray-700">
+                <strong className="text-gray-900">Hours:</strong> {selectedPOI.hours}
+              </p>
             )}
-            <div className="flex gap-2 mb-3">
+            <div className="flex gap-2 mb-4 flex-wrap">
               {selectedPOI.isEssential && (
-                <Badge variant="secondary">Essential</Badge>
+                <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-200">Essential</Badge>
               )}
               {selectedPOI.isAccessible && (
-                <Badge variant="outline">Accessible</Badge>
+                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Accessible</Badge>
               )}
             </div>
             <Button 
-              className="w-full" 
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 shadow-md hover:shadow-lg transition-all" 
               size="sm" 
               onClick={() => handleGetDirections(selectedPOI)}
             >

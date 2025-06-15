@@ -40,54 +40,84 @@ const DirectionsMap: React.FC<DirectionsMapProps> = ({ destination, userLocation
   useEffect(() => {
     if (!mapRef.current) return;
 
-    // Initialize map
-    const map = L.map(mapRef.current).setView(userLocation, 17);
+    // Initialize map with higher zoom and better options for clarity
+    const map = L.map(mapRef.current, {
+      zoomControl: true,
+      attributionControl: true,
+      preferCanvas: true
+    }).setView(userLocation, 18);
     mapInstanceRef.current = map;
 
-    // Add tile layer
+    // Use clearer tile layer with better contrast
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors'
+      attribution: '© OpenStreetMap contributors',
+      maxZoom: 20,
+      detectRetina: true
     }).addTo(map);
 
-    // Add user location marker
+    // Enhanced user location marker
     const userMarker = L.marker(userLocation, {
       icon: L.divIcon({
-        html: '<div style="background: #3B82F6; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>',
+        html: `
+          <div style="
+            background: #10B981; 
+            width: 26px; 
+            height: 26px; 
+            border-radius: 50%; 
+            border: 4px solid white; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            color: white;
+            font-weight: bold;
+          ">
+            📍
+          </div>
+        `,
         className: 'user-location-marker',
-        iconSize: [20, 20],
-        iconAnchor: [10, 10]
+        iconSize: [26, 26],
+        iconAnchor: [13, 13]
       })
     }).addTo(map);
-    userMarker.bindPopup('You are here');
+    userMarker.bindPopup('<strong>Your Location</strong>', {
+      offset: [0, -13],
+      className: 'custom-popup'
+    });
 
-    // Add destination marker
+    // Enhanced destination marker
     const destMarker = L.marker(destination.coordinates, {
       icon: L.divIcon({
         html: `
           <div style="
             background: #EF4444; 
             color: white; 
-            width: 30px; 
-            height: 30px; 
+            width: 38px; 
+            height: 38px; 
             border-radius: 50%; 
             display: flex; 
             align-items: center; 
             justify-content: center; 
-            font-size: 16px;
-            border: 3px solid white;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            font-size: 20px;
+            border: 4px solid white;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            font-weight: bold;
           ">
-            📍
+            🎯
           </div>
         `,
         className: 'destination-marker',
-        iconSize: [30, 30],
-        iconAnchor: [15, 15]
+        iconSize: [38, 38],
+        iconAnchor: [19, 19]
       })
     }).addTo(map);
-    destMarker.bindPopup(destination.name);
+    destMarker.bindPopup(`<strong>${destination.name}</strong>`, {
+      offset: [0, -19],
+      className: 'custom-popup'
+    });
 
-    // Create routing control
+    // Create routing control with enhanced styling
     try {
       const routingControl = (L as any).Routing.control({
         waypoints: [
@@ -98,28 +128,41 @@ const DirectionsMap: React.FC<DirectionsMapProps> = ({ destination, userLocation
         addWaypoints: false,
         fitSelectedRoutes: true,
         lineOptions: {
-          styles: [{ color: '#3B82F6', opacity: 0.8, weight: 6 }]
-        }
+          styles: [{ 
+            color: '#3B82F6', 
+            opacity: 0.9, 
+            weight: 8,
+            dashArray: '0, 10, 5, 5'
+          }]
+        },
+        createMarker: function() { return null; }, // Don't create default markers
+        router: (L as any).Routing.osrmv1({
+          serviceUrl: 'https://router.project-osrm.org/route/v1'
+        })
       });
 
       routingControl.on('routesfound', (e: any) => {
         console.log('Route found successfully');
-        toast.success(`Route to ${destination.name} loaded!`);
+        const routes = e.routes;
+        const summary = routes[0].summary;
+        const distance = (summary.totalDistance / 1000).toFixed(1);
+        const time = Math.round(summary.totalTime / 60);
+        toast.success(`Route found! ${distance}km, ${time} minutes`);
       });
 
       routingControl.on('routingerror', (e: any) => {
         console.error('Routing error:', e);
         toast.error("Could not find route. Showing direct line instead.");
         
-        // Show a simple line as fallback
+        // Show a clearer fallback line
         const polyline = L.polyline([userLocation, destination.coordinates], {
           color: '#3B82F6',
           opacity: 0.8,
-          weight: 6,
-          dashArray: '10, 10'
+          weight: 8,
+          dashArray: '15, 10'
         }).addTo(map);
         
-        map.fitBounds(polyline.getBounds(), { padding: [20, 20] });
+        map.fitBounds(polyline.getBounds(), { padding: [30, 30] });
       });
 
       routingControl.addTo(map);
@@ -137,32 +180,46 @@ const DirectionsMap: React.FC<DirectionsMapProps> = ({ destination, userLocation
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b p-4">
-        <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm" onClick={onBack}>
+      {/* Enhanced Header */}
+      <div className="bg-white shadow-sm border-b p-6">
+        <div className="flex items-center gap-4">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={onBack}
+            className="shadow-sm hover:shadow-md transition-shadow"
+          >
             <ArrowLeft className="w-4 h-4" />
           </Button>
           <div>
-            <h2 className="text-lg font-semibold">Directions to {destination.name}</h2>
-            <p className="text-sm text-gray-600">{destination.description}</p>
+            <h2 className="text-xl font-bold text-gray-900">Directions to {destination.name}</h2>
+            <p className="text-sm text-gray-600 mt-1">{destination.description}</p>
           </div>
         </div>
       </div>
 
-      {/* Map Container */}
-      <div className="flex-1 relative">
-        <div ref={mapRef} className="absolute inset-0" />
+      {/* Enhanced Map Container */}
+      <div className="flex-1 relative bg-white p-4">
+        <div 
+          ref={mapRef} 
+          className="absolute inset-4 rounded-xl overflow-hidden border-2 border-gray-200 shadow-lg" 
+          style={{ 
+            minHeight: '400px',
+            background: '#f8fafc'
+          }}
+        />
         
-        {/* Destination Info Card */}
-        <div className="absolute bottom-4 left-4 right-4 bg-white rounded-lg shadow-lg p-4">
-          <div className="flex items-start justify-between mb-2">
-            <h3 className="font-bold text-lg">{destination.name}</h3>
-            <Navigation className="w-5 h-5 text-blue-600" />
+        {/* Enhanced Destination Info Card */}
+        <div className="absolute bottom-8 left-8 right-8 lg:right-auto lg:w-96 bg-white rounded-xl shadow-2xl border border-gray-100 p-6">
+          <div className="flex items-start justify-between mb-3">
+            <h3 className="font-bold text-xl text-gray-900">{destination.name}</h3>
+            <Navigation className="w-6 h-6 text-blue-600" />
           </div>
-          <p className="text-gray-600 text-sm mb-2">{destination.description}</p>
+          <p className="text-gray-600 text-sm mb-3 leading-relaxed">{destination.description}</p>
           {destination.hours && (
-            <p className="text-sm text-gray-500">Hours: {destination.hours}</p>
+            <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg">
+              <strong className="text-gray-900">Hours:</strong> {destination.hours}
+            </p>
           )}
         </div>
       </div>
