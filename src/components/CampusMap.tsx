@@ -571,7 +571,7 @@ const CampusMap = () => {
 
       {/* Map Container */}
       <div className="flex-1 relative">
-        <div ref={mapRef} className="w-full h-full" />
+        <div ref={mapRef} className="absolute inset-0" />
         
         {/* Map Controls */}
         <div className="absolute top-4 right-4 bg-white rounded-lg shadow-lg p-2 space-y-2">
