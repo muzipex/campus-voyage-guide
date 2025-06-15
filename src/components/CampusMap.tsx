@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import { MapPin, Navigation, Search, Filter, Star, Accessibility, Plus } from 'lucide-react';
@@ -345,9 +346,8 @@ const CampusMap = () => {
         styles: [{ color: '#3B82F6', opacity: 0.8, weight: 6 }],
         extendToWaypoints: false,
         missingRouteTolerance: 10,
-      },
-      createMarker: () => null,
-    }).addTo(map);
+      }
+    } as any).addTo(map);
 
     routingControlRef.current = routingControl;
     setSelectedPOI(null);
