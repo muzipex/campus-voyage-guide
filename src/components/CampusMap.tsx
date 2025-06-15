@@ -1,6 +1,6 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
+import 'leaflet-routing-machine';
 import { MapPin, Navigation, Search, Filter, Star, Accessibility, Plus } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +19,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from 'sonner';
-import 'leaflet-routing-machine';
 
 // Fix for default markers in Leaflet
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -45,7 +44,7 @@ const CampusMap = () => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markersRef = useRef<L.LayerGroup>(new L.LayerGroup());
-  const routingControlRef = useRef<L.Routing.Control | null>(null);
+  const routingControlRef = useRef<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [showEssentialsOnly, setShowEssentialsOnly] = useState(false);
@@ -333,21 +332,18 @@ const CampusMap = () => {
       map.removeControl(routingControlRef.current);
     }
 
-    const routingControl = L.Routing.control({
+    const routingControl = (L as any).Routing.control({
       waypoints: [
         L.latLng(userLocation[0], userLocation[1]),
         L.latLng(poi.coordinates[0], poi.coordinates[1]),
       ],
       routeWhileDragging: false,
-      show: false,
       addWaypoints: false,
       fitSelectedRoutes: true,
       lineOptions: {
-        styles: [{ color: '#3B82F6', opacity: 0.8, weight: 6 }],
-        extendToWaypoints: false,
-        missingRouteTolerance: 10,
+        styles: [{ color: '#3B82F6', opacity: 0.8, weight: 6 }]
       }
-    } as any).addTo(map);
+    }).addTo(map);
 
     routingControlRef.current = routingControl;
     setSelectedPOI(null);
