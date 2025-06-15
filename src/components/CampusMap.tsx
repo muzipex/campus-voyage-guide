@@ -344,6 +344,8 @@ const CampusMap = () => {
       fitSelectedRoutes: true,
       lineOptions: {
         styles: [{ color: '#3B82F6', opacity: 0.8, weight: 6 }],
+        extendToWaypoints: false,
+        missingRouteTolerance: 10,
       },
       createMarker: () => null,
     }).addTo(map);
