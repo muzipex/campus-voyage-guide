@@ -52,6 +52,7 @@ const CampusMap = () => {
   const [selectedPOI, setSelectedPOI] = useState<POI | null>(null);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [showingDirections, setShowingDirections] = useState(false);
+  const [isLoadingDirections, setIsLoadingDirections] = useState(false);
 
   const [isPlacingMarker, setIsPlacingMarker] = useState(false);
   const [newPOICoords, setNewPOICoords] = useState<[number, number] | null>(null);
@@ -195,6 +196,7 @@ const CampusMap = () => {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const coords: [number, number] = [position.coords.latitude, position.coords.longitude];
+          console.log('User location obtained:', coords);
           setUserLocation(coords);
           
           // Add user location marker
@@ -210,14 +212,18 @@ const CampusMap = () => {
           userMarker.bindPopup('You are here');
         },
         (error) => {
-          console.log('Location access denied:', error);
-          // Set a default location near campus for demo purposes
-          setUserLocation([0.3475, 32.5823]);
+          console.log('Location access denied, using fallback:', error);
+          // Set a fallback location near campus
+          const fallbackLocation: [number, number] = [0.3475, 32.5823];
+          setUserLocation(fallbackLocation);
+          toast.info("Using campus center as starting point for directions");
         }
       );
     } else {
-      // Set a default location near campus for demo purposes
-      setUserLocation([0.3475, 32.5823]);
+      console.log('Geolocation not supported, using fallback');
+      // Set a fallback location near campus
+      const fallbackLocation: [number, number] = [0.3475, 32.5823];
+      setUserLocation(fallbackLocation);
     }
 
     return () => {
@@ -320,45 +326,79 @@ const CampusMap = () => {
     setSelectedPOI(poi);
   };
 
-  const handleGetDirections = (poi: POI) => {
+  const handleGetDirections = async (poi: POI) => {
     const map = mapInstanceRef.current;
-    if (!map) return;
-
-    if (!userLocation) {
-      toast.error("Your location is not available. Using campus center as starting point.");
+    if (!map) {
+      toast.error("Map not available");
       return;
     }
 
-    console.log('Getting directions from', userLocation, 'to', poi.coordinates);
+    console.log('Getting directions button clicked for:', poi.name);
+    console.log('Current user location:', userLocation);
+    
+    setIsLoadingDirections(true);
 
+    // Use fallback location if user location is not available
+    const startLocation = userLocation || [0.3475, 32.5823];
+    
+    console.log('Starting directions from:', startLocation, 'to:', poi.coordinates);
+
+    // Clear existing route
     if (routingControlRef.current) {
       map.removeControl(routingControlRef.current);
+      routingControlRef.current = null;
     }
 
     try {
+      // Create routing control with better error handling
       const routingControl = (L as any).Routing.control({
         waypoints: [
-          L.latLng(userLocation[0], userLocation[1]),
+          L.latLng(startLocation[0], startLocation[1]),
           L.latLng(poi.coordinates[0], poi.coordinates[1]),
         ],
         routeWhileDragging: false,
         addWaypoints: false,
         fitSelectedRoutes: true,
-        show: true,
-        createMarker: function() { return null; }, // Don't create additional markers
+        show: false, // Hide the itinerary panel
         lineOptions: {
           styles: [{ color: '#3B82F6', opacity: 0.8, weight: 6 }]
         }
-      }).addTo(map);
+      });
 
+      // Add error handling
+      routingControl.on('routesfound', (e: any) => {
+        console.log('Route found successfully');
+        setShowingDirections(true);
+        setIsLoadingDirections(false);
+        toast.success(`Directions to ${poi.name} are now showing!`);
+      });
+
+      routingControl.on('routingerror', (e: any) => {
+        console.error('Routing error:', e);
+        setIsLoadingDirections(false);
+        toast.error("Could not find route. Showing direct line instead.");
+        
+        // Show a simple line as fallback
+        const polyline = L.polyline([startLocation, poi.coordinates], {
+          color: '#3B82F6',
+          opacity: 0.8,
+          weight: 6,
+          dashArray: '10, 10'
+        }).addTo(map);
+        
+        map.fitBounds(polyline.getBounds(), { padding: [20, 20] });
+        setShowingDirections(true);
+      });
+
+      routingControl.addTo(map);
       routingControlRef.current = routingControl;
-      setShowingDirections(true);
-      setSelectedPOI(null);
       
-      toast.success(`Directions to ${poi.name} are now showing on the map!`);
+      // Close the POI info panel
+      setSelectedPOI(null);
       
     } catch (error) {
       console.error('Error creating route:', error);
+      setIsLoadingDirections(false);
       toast.error("Unable to create route. Please try again.");
     }
   };
@@ -577,9 +617,14 @@ const CampusMap = () => {
                 <Badge variant="outline">Accessible</Badge>
               )}
             </div>
-            <Button className="w-full" size="sm" onClick={() => handleGetDirections(selectedPOI)}>
+            <Button 
+              className="w-full" 
+              size="sm" 
+              onClick={() => handleGetDirections(selectedPOI)}
+              disabled={isLoadingDirections}
+            >
               <Navigation className="w-4 h-4 mr-2" />
-              Get Directions
+              {isLoadingDirections ? 'Loading Directions...' : 'Get Directions'}
             </Button>
           </div>
         )}
@@ -590,6 +635,16 @@ const CampusMap = () => {
             <div className="flex items-center">
               <Navigation className="w-4 h-4 mr-2" />
               <span className="text-sm font-medium">Showing directions</span>
+            </div>
+          </div>
+        )}
+        
+        {/* Loading indicator */}
+        {isLoadingDirections && (
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-lg p-4">
+            <div className="flex items-center space-x-2">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+              <span className="text-sm">Loading directions...</span>
             </div>
           </div>
         )}
