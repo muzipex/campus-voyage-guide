@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import { MapPin, Navigation, Search, Filter, Star, Accessibility, Plus } from 'lucide-react';
@@ -344,6 +345,8 @@ const CampusMap = () => {
       fitSelectedRoutes: true,
       lineOptions: {
         styles: [{ color: '#3B82F6', opacity: 0.8, weight: 6 }],
+        extendToWaypoints: true,
+        missingRouteTolerance: 5,
       },
       createMarker: () => null,
     }).addTo(map);
