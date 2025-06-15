@@ -340,7 +340,6 @@ const CampusMap = () => {
       routeWhileDragging: false,
       show: false,
       addWaypoints: false,
-      draggableWaypoints: false,
       fitSelectedRoutes: true,
       lineOptions: {
         styles: [{ color: '#3B82F6', opacity: 0.8, weight: 6 }],
