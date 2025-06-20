@@ -498,7 +498,7 @@ const CampusMap = () => {
       <div className="w-full lg:w-96 bg-white shadow-lg overflow-y-auto">
         <div className="p-4 border-b">
           <div className="flex items-center gap-3 mb-4">
-            <img src="/MB-logo.svg" alt="MB" className="w-8 h-8" />
+            <img src="/icons8-monzo.svg" alt="Monzo" className="w-8 h-8" />
             <h2 className="text-2xl font-bold text-gray-900">Mubs Campus Map</h2>
           </div>
           
