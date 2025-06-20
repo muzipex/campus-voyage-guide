@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet-routing-machine';
@@ -187,8 +186,8 @@ const CampusMap = () => {
     const map = L.map(mapRef.current, {
       zoomControl: true,
       attributionControl: true,
-      preferCanvas: true // Better performance for many markers
-    }).setView([0.3476, 32.5825], 18); // Increased zoom from 17 to 18
+      preferCanvas: true
+    }).setView([0.3476, 32.5825], 18);
     mapInstanceRef.current = map;
 
     // Use a clearer, high-contrast tile layer
@@ -197,7 +196,7 @@ const CampusMap = () => {
       maxZoom: 20,
       tileSize: 256,
       zoomOffset: 0,
-      detectRetina: true // Enable high-DPI support
+      detectRetina: true
     }).addTo(map);
 
     // Add markers layer group
@@ -223,6 +222,7 @@ const CampusMap = () => {
                   border: 4px solid white; 
                   box-shadow: 0 3px 8px rgba(0,0,0,0.4);
                   position: relative;
+                  animation: pulse 2s infinite;
                 ">
                   <div style="
                     width: 8px;
@@ -242,7 +242,18 @@ const CampusMap = () => {
             })
           }).addTo(map);
           
-          userMarker.bindPopup('<strong>You are here</strong>', {
+          userMarker.bindPopup(`
+            <div class="text-center">
+              <strong>Your Location</strong>
+              <br/>
+              <button 
+                class="mt-2 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+                onclick="document.getElementById('addCurrentLocationBtn').click()"
+              >
+                Add POI Here
+              </button>
+            </div>
+          `, {
             offset: [0, -12],
             className: 'custom-popup'
           });
@@ -257,16 +268,18 @@ const CampusMap = () => {
           });
         }
       );
-    } else {
-      console.log('Geolocation not supported, using fallback');
-      const fallbackLocation: [number, number] = [0.3475, 32.5823];
-      setUserLocation(fallbackLocation);
     }
 
     return () => {
       map.remove();
     };
   }, [toast]);
+
+  const handleAddCurrentLocation = () => {
+    if (!userLocation) return;
+    setNewPOICoords(userLocation);
+    setAddMarkerDialogOpen(true);
+  };
 
   useEffect(() => {
     const map = mapInstanceRef.current;
@@ -332,17 +345,25 @@ const CampusMap = () => {
         })
       });
 
-      // Enhanced popup with better styling
       marker.bindPopup(`
         <div style="min-width: 220px; font-family: system-ui, -apple-system, sans-serif;">
           <h3 style="margin: 0 0 8px 0; font-weight: bold; font-size: 16px; color: #1f2937;">${poi.name}</h3>
           <p style="margin: 0 0 8px 0; color: #6b7280; font-size: 14px; line-height: 1.4;">${poi.description}</p>
           ${poi.hours ? `<p style="margin: 0 0 4px 0; font-size: 13px;"><strong>Hours:</strong> ${poi.hours}</p>` : ''}
-          ${poi.floor ? `<p style="margin: 0 0 4px 0; font-size: 13px;"><strong>Floor:</strong> ${poi.floor}</p>` : ''}
           <div style="display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap;">
             ${poi.isEssential ? '<span style="background: #FEF3C7; color: #92400E; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 500;">Essential</span>' : ''}
             ${poi.isAccessible ? '<span style="background: #D1FAE5; color: #065F46; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 500;">Accessible</span>' : ''}
           </div>
+          ${userLocation ? `
+            <div style="margin-top: 10px;">
+              <button 
+                onclick="document.dispatchEvent(new CustomEvent('getDirections', {detail: '${poi.id}'}))"
+                style="background: #3B82F6; color: white; padding: 6px 12px; border-radius: 6px; font-size: 13px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;"
+              >
+                <span>📍</span> Get Directions
+              </button>
+            </div>
+          ` : ''}
         </div>
       `, {
         maxWidth: 300,
@@ -355,7 +376,21 @@ const CampusMap = () => {
 
       markersRef.current.addLayer(marker);
     });
-  }, [filteredPOIs]);
+
+    // Add event listener for directions button in popups
+    const handleGetDirectionsFromPopup = (event: CustomEvent) => {
+      const poi = pois.find(p => p.id === event.detail);
+      if (poi) {
+        handleGetDirections(poi);
+      }
+    };
+
+    document.addEventListener('getDirections', handleGetDirectionsFromPopup as EventListener);
+
+    return () => {
+      document.removeEventListener('getDirections', handleGetDirectionsFromPopup as EventListener);
+    };
+  }, [filteredPOIs, userLocation, pois]);
 
   const navigateTo = (poi: POI) => {
     if (!mapInstanceRef.current) return;
@@ -440,7 +475,10 @@ const CampusMap = () => {
       {/* Sidebar */}
       <div className="w-full lg:w-96 bg-white shadow-lg overflow-y-auto">
         <div className="p-4 border-b">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Mubs Campus Map</h2>
+          <div className="flex items-center gap-3 mb-4">
+            <img src="/MB-logo.svg" alt="MB" className="w-8 h-8" />
+            <h2 className="text-2xl font-bold text-gray-900">Mubs Campus Map</h2>
+          </div>
           
           {/* Search */}
           <div className="relative mb-4">
@@ -453,8 +491,45 @@ const CampusMap = () => {
             />
           </div>
 
-          {/* Filter Buttons */}
+          {/* Always visible user location card */}
+          {userLocation && (
+            <Card className="mb-4 border-blue-100">
+              <CardHeader className="py-3">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-blue-500" />
+                  Your Location
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="py-2">
+                <div className="text-xs space-y-1">
+                  <p>Lat: {userLocation[0].toFixed(6)}</p>
+                  <p>Lng: {userLocation[1].toFixed(6)}</p>
+                  <Button
+                    id="addCurrentLocationBtn"
+                    onClick={handleAddCurrentLocation}
+                    variant="outline"
+                    size="sm"
+                    className="w-full mt-2"
+                  >
+                    <Plus className="w-3 h-3 mr-1" />
+                    Add POI Here
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Action Buttons */}
           <div className="space-y-2 mb-4">
+            <Button
+              onClick={() => handleMyLocationClick()}
+              variant="default"
+              size="sm"
+              className="w-full justify-start bg-blue-500 hover:bg-blue-600"
+            >
+              <MapPin className="w-4 h-4 mr-2" />
+              Go to My Location
+            </Button>
             <Button
               onClick={() => setIsPlacingMarker(!isPlacingMarker)}
               variant={isPlacingMarker ? 'destructive' : 'outline'}
@@ -568,70 +643,72 @@ const CampusMap = () => {
           className="absolute inset-2 rounded-lg overflow-hidden border-2 border-gray-200 shadow-md" 
           style={{ 
             minHeight: '400px',
-            background: '#f8fafc' // Light background while loading
+            background: '#f8fafc'
           }} 
         />
-        
-        {/* Enhanced Map Controls */}
-        <div className="absolute top-6 right-6 bg-white rounded-lg shadow-lg border border-gray-200 p-2 space-y-2">
-          <Button 
-            size="sm" 
-            variant="outline" 
-            className="w-full font-medium shadow-sm hover:shadow-md transition-shadow" 
-            onClick={handleMyLocationClick}
-          >
-            <MapPin className="w-4 h-4 mr-2" />
-            My Location
-          </Button>
-        </div>
+      </div>
 
-        {/* Enhanced Selected POI Info */}
-        {selectedPOI && (
-          <div className="absolute bottom-6 left-6 right-6 lg:right-auto lg:w-96 bg-white rounded-xl shadow-xl border border-gray-100 p-6">
-            <div className="flex items-start justify-between mb-3">
-              <h3 className="font-bold text-xl text-gray-900">{selectedPOI.name}</h3>
-              <button
-                onClick={() => setSelectedPOI(null)}
-                className="text-gray-400 hover:text-gray-600 text-xl font-light leading-none"
-              >
-                ×
-              </button>
-            </div>
-            <p className="text-gray-600 text-sm mb-4 leading-relaxed">{selectedPOI.description}</p>
-            {selectedPOI.hours && (
-              <p className="text-sm mb-3 text-gray-700">
-                <strong className="text-gray-900">Hours:</strong> {selectedPOI.hours}
-              </p>
+      {/* Selected POI Info */}
+      {selectedPOI && (
+        <div className="absolute bottom-6 left-6 right-6 lg:right-auto lg:w-96 bg-white rounded-xl shadow-xl border border-gray-100 p-6">
+          <div className="flex items-start justify-between mb-3">
+            <h3 className="font-bold text-xl text-gray-900">{selectedPOI.name}</h3>
+            <button
+              onClick={() => setSelectedPOI(null)}
+              className="text-gray-400 hover:text-gray-600 text-xl font-light leading-none"
+            >
+              ×
+            </button>
+          </div>
+          <p className="text-gray-600 text-sm mb-4 leading-relaxed">{selectedPOI.description}</p>
+          {selectedPOI.hours && (
+            <p className="text-sm mb-3 text-gray-700">
+              <strong className="text-gray-900">Hours:</strong> {selectedPOI.hours}
+            </p>
+          )}
+          <div className="flex gap-2 mb-4 flex-wrap">
+            {selectedPOI.isEssential && (
+              <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-200">
+                Essential
+              </Badge>
             )}
-            <div className="flex gap-2 mb-4 flex-wrap">
-              {selectedPOI.isEssential && (
-                <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-200">Essential</Badge>
-              )}
-              {selectedPOI.isAccessible && (
-                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Accessible</Badge>
-              )}
-            </div>
+            {selectedPOI.isAccessible && (
+              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                Accessible
+              </Badge>
+            )}
+            <Badge
+              style={{ backgroundColor: categoryColors[selectedPOI.category] }}
+              className="text-white"
+            >
+              {selectedPOI.category}
+            </Badge>
+          </div>
+          {userLocation && (
             <Button 
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 shadow-md hover:shadow-lg transition-all" 
-              size="sm" 
               onClick={() => handleGetDirections(selectedPOI)}
             >
               <Navigation className="w-4 h-4 mr-2" />
               Get Directions
             </Button>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
+      {/* Add POI Dialog */}
       <Dialog open={isAddMarkerDialogOpen} onOpenChange={setAddMarkerDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add a new Point of Interest</DialogTitle>
             <DialogDescription>
-              A marker has been placed at the location you clicked. Please fill out the details for this new POI.
+              {isPlacingMarker ? 
+                "Click on the map to place the new POI." :
+                "A marker has been placed at the location you clicked. Please fill out the details for this new POI."
+              }
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleAddPOI} className="space-y-4 pt-4">
+          <form onSubmit={handleAddPOI} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="poi-name">Name</Label>
               <Input
@@ -653,20 +730,22 @@ const CampusMap = () => {
             </div>
             <div className="space-y-2">
               <Label htmlFor="poi-category">Category</Label>
-              <Select value={newPOICategory} onValueChange={(value) => setNewPOICategory(value as POI['category'])}>
+              <Select value={newPOICategory} onValueChange={value => setNewPOICategory(value as POI['category'])}>
                 <SelectTrigger id="poi-category">
                   <SelectValue placeholder="Select a category" />
                 </SelectTrigger>
                 <SelectContent>
                   {categories.filter(c => c.id !== 'all').map(category => (
-                    <SelectItem key={category.id} value={category.id}>{category.icon} {category.name}</SelectItem>
+                    <SelectItem key={category.id} value={category.id}>
+                      {category.icon} {category.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <DialogFooter>
               <DialogClose asChild>
-                <Button type="button" variant="outline" onClick={() => setNewPOICoords(null)}>Cancel</Button>
+                <Button type="button" variant="outline">Cancel</Button>
               </DialogClose>
               <Button type="submit">Add POI</Button>
             </DialogFooter>
