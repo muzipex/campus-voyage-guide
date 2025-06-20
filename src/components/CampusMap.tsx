@@ -207,9 +207,8 @@ const CampusMap = () => {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const coords: [number, number] = [position.coords.latitude, position.coords.longitude];
-          console.log('User location obtained:', coords);
           setUserLocation(coords);
-          
+
           // Enhanced user location marker with better visibility
           const userMarker = L.marker(coords, {
             icon: L.divIcon({
@@ -241,14 +240,15 @@ const CampusMap = () => {
               iconAnchor: [12, 12]
             })
           }).addTo(map);
-          
+
           userMarker.bindPopup(`
             <div class="text-center">
               <strong>Your Location</strong>
               <br/>
               <button 
                 class="mt-2 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
-                onclick="document.getElementById('addCurrentLocationBtn').click()"
+                id="add-poi-here-btn"
+                type="button"
               >
                 Add POI Here
               </button>
@@ -256,6 +256,16 @@ const CampusMap = () => {
           `, {
             offset: [0, -12],
             className: 'custom-popup'
+          });
+
+          // Listen for popupopen to attach event
+          map.on('popupopen', (e: any) => {
+            const btn = document.getElementById('add-poi-here-btn');
+            if (btn) {
+              btn.onclick = () => {
+                window.dispatchEvent(new CustomEvent('openAddPOIAtUserLocation'));
+              };
+            }
           });
         },
         (error) => {
@@ -274,6 +284,18 @@ const CampusMap = () => {
       map.remove();
     };
   }, [toast]);
+
+  // Listen for custom event to open the dialog at user location
+  useEffect(() => {
+    const handler = () => {
+      if (userLocation) {
+        setNewPOICoords(userLocation);
+        setAddMarkerDialogOpen(true);
+      }
+    };
+    window.addEventListener('openAddPOIAtUserLocation', handler);
+    return () => window.removeEventListener('openAddPOIAtUserLocation', handler);
+  }, [userLocation]);
 
   const handleAddCurrentLocation = () => {
     if (!userLocation) return;
