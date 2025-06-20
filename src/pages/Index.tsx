@@ -3,10 +3,11 @@ import { MapPin, Navigation, Users, Smartphone, Accessibility, Star } from "luci
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useLocalAuth } from "@/hooks/use-local-auth";
+import { useToast } from "@/hooks/use-toast";
 
 const Index = () => {
   const [isHovered, setIsHovered] = useState<string | null>(null);
@@ -15,6 +16,8 @@ const Index = () => {
   const [signupPassword, setSignupPassword] = useState("");
   const [signupError, setSignupError] = useState("");
   const { login } = useLocalAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
 
   const features = [
     {
@@ -69,9 +72,15 @@ const Index = () => {
     }
     login(signupUsername, signupPassword);
     setSignupOpen(false);
+    setSignupError("");
+    const username = signupUsername;
     setSignupUsername("");
     setSignupPassword("");
-    setSignupError("");
+    navigate("/map");
+    toast({
+      title: `Welcome, ${username}!`,
+      description: "Your account has been created. Enjoy exploring the campus!",
+    });
   };
 
   return (
