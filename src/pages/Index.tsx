@@ -4,9 +4,17 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { useLocalAuth } from "@/hooks/use-local-auth";
 
 const Index = () => {
   const [isHovered, setIsHovered] = useState<string | null>(null);
+  const [signupOpen, setSignupOpen] = useState(false);
+  const [signupUsername, setSignupUsername] = useState("");
+  const [signupPassword, setSignupPassword] = useState("");
+  const [signupError, setSignupError] = useState("");
+  const { login } = useLocalAuth();
 
   const features = [
     {
@@ -53,6 +61,19 @@ const Index = () => {
     }
   ];
 
+  const handleSignup = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!signupUsername || !signupPassword) {
+      setSignupError("Please fill in all fields.");
+      return;
+    }
+    login(signupUsername, signupPassword);
+    setSignupOpen(false);
+    setSignupUsername("");
+    setSignupPassword("");
+    setSignupError("");
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
       {/* Navigation Header */}
@@ -76,6 +97,13 @@ const Index = () => {
             </Button>
             <Button variant="ghost" className="text-gray-700 hover:text-blue-600">
               About
+            </Button>
+            <Button
+              variant="outline"
+              className="border-2 border-blue-500 text-blue-600 hover:bg-blue-50 px-6 font-semibold"
+              onClick={() => setSignupOpen(true)}
+            >
+              Sign Up
             </Button>
             <Link to="/map">
               <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6">
@@ -115,7 +143,14 @@ const Index = () => {
                 <Navigation className="ml-2 w-5 h-5" />
               </Button>
             </Link>
-            
+            <Button 
+              size="lg" 
+              variant="outline" 
+              className="border-2 border-gray-300 hover:border-blue-400 text-gray-700 hover:text-blue-600 px-8 py-4 text-lg font-semibold rounded-xl transition-all duration-300"
+              onClick={() => setSignupOpen(true)}
+            >
+              Sign Up
+            </Button>
             <Button 
               size="lg" 
               variant="outline" 
@@ -131,6 +166,48 @@ const Index = () => {
         <div className="absolute top-40 right-20 w-32 h-32 bg-gradient-to-br from-pink-400 to-red-500 rounded-full opacity-15 animate-pulse delay-300"></div>
         <div className="absolute bottom-20 left-1/4 w-16 h-16 bg-gradient-to-br from-green-400 to-blue-500 rounded-full opacity-25 animate-pulse delay-700"></div>
       </section>
+
+      {/* Sign Up Dialog */}
+      <Dialog open={signupOpen} onOpenChange={setSignupOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Sign Up</DialogTitle>
+            <DialogDescription>
+              Create a new account to save your favorite spots and routes.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSignup} className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <label htmlFor="signup-username" className="block text-sm font-medium text-gray-700">Username</label>
+              <Input
+                id="signup-username"
+                value={signupUsername}
+                onChange={e => setSignupUsername(e.target.value)}
+                placeholder="Enter your username"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="signup-password" className="block text-sm font-medium text-gray-700">Password</label>
+              <Input
+                id="signup-password"
+                type="password"
+                value={signupPassword}
+                onChange={e => setSignupPassword(e.target.value)}
+                placeholder="Enter your password"
+                required
+              />
+            </div>
+            {signupError && <div className="text-red-500 text-sm">{signupError}</div>}
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button type="button" variant="outline">Cancel</Button>
+              </DialogClose>
+              <Button type="submit">Sign Up</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Features Section */}
       <section className="py-24 px-6 bg-white/50 backdrop-blur-sm">
